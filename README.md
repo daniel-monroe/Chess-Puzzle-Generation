@@ -150,17 +150,50 @@ What changes relative to lc0 BT4, and nothing else:
 `src/BT4/check_bt4.py` verifies the port against outputs recorded from the lc0 engine and checks
 that, on a known board, the move head reproduces BT4's policy over legal moves.
 
-### Running on a GPU node (e.g. 8x B300)
+### Running on a GPU node (8x B300)
 
 ```bash
-bash setup_b300.sh    # env (CUDA build matched to the driver), Stockfish, BT4 weights, dataset, self-check
-bash launch_bt4.sh    # BT4 finetune on GPUs 0-3 vs. the original MaskedDiffusion model (from scratch) on GPUs 4-7
+git clone -b bt4-finetune https://github.com/daniel-monroe/Chess-Puzzle-Generation && cd Chess-Puzzle-Generation
+bash setup_b300.sh    # env (CUDA build matched to the driver), Stockfish, BT4 weights (sha256-checked), Lichess dataset, self-check
+bash launch_bt4.sh    # BT4 finetune on GPUs 0-3, original MaskedDiffusion model on GPUs 4-7 (runs in the background)
 ```
 
-Both runs use the same settings: data, targets, global batch, steps, AdamW (lr 3e-4,
-weight decay 1e-4), warmup + cosine schedule, and the same validation loss and puzzle metrics
-in TensorBoard. Only the network and BT4's pretrained initialisation differ. Batch size, steps, learning rates (`LR_PRE` for pretrained
-BT4 weights, `LR_NEW` for new layers) and other settings are environment variables documented
-at the top of `launch_bt4.sh`. Logs and checkpoints go to `src/runs/supervised/bt4_*`.
-Re-running the launcher resumes from the newest checkpoint. Under Slurm:
-`sbatch src/scripts/training/bt4.sh`.
+**Requirements:** 8 GPUs, about 40 GB of free disk, and internet access (PyTorch wheels,
+Stockfish, the BT4 weights from storage.lczero.org, the Lichess puzzle database). Also `git`,
+`curl`, `make` and `g++`. Check the end of `setup_b300.sh`'s output: the torch line should list
+all GPUs, and it should finish with `BT4 check passed`.
+
+**What runs** (both runs use identical settings; only the network and BT4's pretrained
+initialisation differ):
+
+| | |
+|---|---|
+| Data | 6.16M Lichess puzzles: 6.11M train, 50,000 random test |
+| Targets | all 81 tokens: 64 squares, 12 FEN fields, 5 best-move tokens |
+| Run length | **1,000,000 steps at a global batch of 2,048 per run** (4 GPUs x 512), about 2.05B samples or ~335 epochs. Same sample budget as the paper's 2,000,000 steps at batch 1,024 |
+| Optimiser | AdamW, lr 3e-4 for every parameter, weight decay 1e-4, 1,000 warmup steps, cosine decay to 10% |
+| Validation | full 50k test set every 5,000 steps |
+| Puzzle evaluation | 20,000 generated positions scored with Stockfish every 50,000 steps (legal, unique, counter-intuitive, puzzle rate) |
+| Checkpoints | `model_<step>.pt` every 20,000 steps (2 newest kept, for resuming) and `model_best.pt`, the lowest validation loss so far |
+
+Expect the runs to take on the order of days. BT4 is about 1.7x faster per step than the
+original model. To shorten, set e.g. `STEPS=200000 bash launch_bt4.sh`; all settings are
+environment variables documented at the top of `launch_bt4.sh`.
+
+**Logs** go to `src/runs/supervised/bt4_finetune/` and `src/runs/supervised/bt4_original/`:
+
+```bash
+tail -f src/runs/supervised/bt4_*/train.log | grep --line-buffered -E "==>|\[val\]|\[eval\]"
+.venv/bin/tensorboard --logdir src/runs/supervised --bind_all   # curves
+```
+
+`[train]` lines appear every 100 steps, `[val]` every 5,000 and `[eval]` every 50,000.
+
+**Stop / resume:** `kill $(cat src/runs/supervised/bt4_*/launcher.pid)`. Running
+`bash launch_bt4.sh` again resumes each run from its newest checkpoint.
+
+**If a run crashes in `torch.compile`** (new GPU architectures), relaunch with
+`COMPILE=0 bash launch_bt4.sh`, adding `TORCHDYNAMO_DISABLE=1` if the original model's sampler
+fails too. Training resumes from the last checkpoint.
+
+**Under Slurm:** `sbatch src/scripts/training/bt4.sh`.
