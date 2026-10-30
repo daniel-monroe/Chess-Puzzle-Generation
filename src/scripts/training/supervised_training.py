@@ -321,6 +321,7 @@ def main():
         validation_loss = compute_validation_loss()
         if master_process:
             validation_writer.add_scalar("Loss", validation_loss, step)
+            print(f"[val] step {step} validation loss {float(validation_loss):.4f}", flush=True)
 
     def save_state():
         checkpoint_path = logging_path / f"model_{step:07d}.pt"
@@ -434,6 +435,9 @@ def main():
             validation_writer.add_scalar("Metrics/uniqueness_rate", uniqueness_rate, step)
             validation_writer.add_scalar("Metrics/counter_intuitiveness_rate_given_unique", counter_intuitiveness_rate, step)
             validation_writer.add_scalar("Metrics/puzzle_rate", puzzle_rate, step)
+            print(f"[eval] step {step} legal {legal_rate:.4f} unique {uniqueness_rate:.4f} "
+                  f"counter-intuitive|unique {counter_intuitiveness_rate:.4f} puzzle {puzzle_rate:.4f} "
+                  f"({int(total_gen)} positions)", flush=True)
             
         model.train()
 

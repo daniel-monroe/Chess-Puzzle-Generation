@@ -94,7 +94,7 @@ done
 cat <<EOF
 
 Launched ${run_list[*]} (pids ${pids[*]}).
-  follow:      tail -f $RUNS_DIR/${PREFIX}_*/train.log
+  follow:      tail -f $RUNS_DIR/${PREFIX}_*/train.log    ([train] every 100 steps, [val] every VAL_EVERY, [eval] every EVAL_EVERY)
   tensorboard: $ROOT/.venv/bin/tensorboard --logdir $RUNS_DIR --bind_all
   stop:        kill \$(cat $RUNS_DIR/${PREFIX}_*/launcher.pid)
   re-running this script resumes each run from its newest checkpoint.
