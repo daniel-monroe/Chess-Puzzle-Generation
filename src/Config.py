@@ -33,6 +33,11 @@ class Config:
         self.__post_init__()
 
     # model architecture
+    # "masked_diffusion" = original transformer, "bt4" = Leela BT4 adapted to the puzzle tokens
+    model_type: str = "masked_diffusion"
+    bt4_weights: str = None        # lc0 BT4 .pb.gz (needed when bt4_init == "lc0")
+    bt4_init: str = "lc0"          # "lc0" = start from BT4 weights, "scratch" = random init
+    bt4_history: str = "repeat"    # lc0 history planes for a FEN: "repeat" (lc0 fen_only) or "none"
     n_heads: int = 8
     n_layers: int = 16
     embed_dim: int = 1024

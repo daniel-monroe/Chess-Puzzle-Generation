@@ -18,6 +18,7 @@ import pandas as pd
 from chess.engine import SimpleEngine
 
 from MaskedDiffusion.model import MaskedDiffusion
+from models import build_model
 from tokenization.tokenization import (
     FENTokens, board_token_2_str, board_str_2_token, enpassant_token_2_str, enpassant_str_2_token,
     promote_str_2_token, counter_str_2_token, theme_preprocessor, scale_ratings, unscale_ratings,
@@ -386,7 +387,7 @@ def main():
     if args.best_move is not None and not config.predict_moves:
         raise ValueError("Cannot condition on --best_move: the loaded model checkpoint was not trained with move prediction (config.predict_moves is False).")
 
-    model = MaskedDiffusion(config)
+    model = build_model(config, load_weights=False)
     state_dict = {k.removeprefix("module.").removeprefix("_orig_mod."): v for k, v in checkpoint["model"].items()}
     model.load_state_dict(state_dict)
     model.to(device=device)

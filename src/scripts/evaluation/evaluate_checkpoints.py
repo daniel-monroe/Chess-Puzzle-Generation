@@ -15,6 +15,7 @@ import os
 import re
 
 from MaskedDiffusion.model import MaskedDiffusion
+from models import build_model
 from metrics.theme_conditioning import generate_random_themes, theme_reward
 from tokenization.tokenization import theme_preprocessor, scale_ratings, tokens_to_fen, tokens_to_move, unscale_ratings
 from metrics.themes import legal, get_unique_puzzle_from_fen, counter_intuitive, uniqueness
@@ -164,7 +165,7 @@ try:
         checkpoint = torch.load(cp_path, map_location="cpu", weights_only=False)
         
         config = checkpoint["config"]
-        model = MaskedDiffusion(config)
+        model = build_model(config, load_weights=False)
         state_dict = {k.removeprefix("module.").removeprefix("_orig_mod."): v for k, v in checkpoint["model"].items()}
         model.load_state_dict(state_dict)
         model.to(device=device)

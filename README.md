@@ -120,3 +120,47 @@ sbatch src/scripts/training/train_rl_ddpo.sh
   ```bash
   sbatch src/scripts/generation/compute_diffusion_trajectories.sh
   ```
+
+---
+
+## Leela BT4 backbone (BT4 finetune vs. the original model)
+
+`src/BT4/` adds Leela Chess Zero's BT4 transformer (`BT4-1024x15x32h`, 188M parameters with
+smolgen, which the Chessformer paper calls GAB, the geometric attention bias) as a drop-in
+replacement for the masked-diffusion network. It takes the same inputs and produces the same
+outputs (81 tokens, theme and rating conditioning, per-token logits) and is trained with the same
+masked-diffusion objective (random token masking, ELBO loss) and sampler, so the training, RL,
+evaluation and generation scripts work unchanged (`Config.model_type = "bt4"`).
+
+What changes relative to lc0 BT4, and nothing else:
+
+- **Sequence:** all 81 tokens are attention positions: the 64 squares plus the 12 FEN
+  metadata tokens and the 5 best-move tokens. Squares attend to squares exactly as in BT4
+  (smolgen/GAB bias), and to the 17 extra tokens through a gated second attention whose gate
+  starts at zero. The extra tokens attend to all 81 tokens. All of it uses BT4's pretrained
+  q/k/v projections, so at initialisation the network computes exactly BT4.
+- **Square input:** square tokens become lc0's classical 112 input planes (side-to-move frame
+  and `fen_only` history as in lc0). Masked squares and the theme/rating conditioning enter
+  through zero-initialised projections.
+- **Outputs:** every position gets logits over the full vocabulary, like the original
+  model's classifier, so the losses compare directly. The best-move tokens additionally start
+  from the marginals of BT4's own policy head, restricted to moves consistent with what is
+  known; a learned head on the move tokens (zero at init) adds to them.
+
+`src/BT4/check_bt4.py` verifies the port against outputs recorded from the lc0 engine and checks
+that, on a known board, the move head reproduces BT4's policy over legal moves.
+
+### Running on a GPU node (e.g. 8x B300)
+
+```bash
+bash setup_b300.sh    # env (CUDA build matched to the driver), Stockfish, BT4 weights, dataset, self-check
+bash launch_bt4.sh    # BT4 finetune on GPUs 0-3 vs. the original MaskedDiffusion model (from scratch) on GPUs 4-7
+```
+
+Both runs use the same settings: data, targets, global batch, steps, AdamW (lr 3e-4,
+weight decay 1e-4), warmup + cosine schedule, and the same validation loss and puzzle metrics
+in TensorBoard. Only the network and BT4's pretrained initialisation differ. Batch size, steps, learning rates (`LR_PRE` for pretrained
+BT4 weights, `LR_NEW` for new layers) and other settings are environment variables documented
+at the top of `launch_bt4.sh`. Logs and checkpoints go to `src/runs/supervised/bt4_*`.
+Re-running the launcher resumes from the newest checkpoint. Under Slurm:
+`sbatch src/scripts/training/bt4.sh`.

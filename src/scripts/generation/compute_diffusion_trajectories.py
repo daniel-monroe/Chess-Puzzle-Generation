@@ -17,6 +17,7 @@ import pandas as pd
 from chess.engine import SimpleEngine
 
 from MaskedDiffusion.model import MaskedDiffusion
+from models import build_model
 from tokenization.tokenization import (
     FENTokens, board_token_2_str, enpassant_token_2_str,
     theme_preprocessor, unscale_ratings, tokens_to_fen, tokens_to_move
@@ -229,7 +230,7 @@ def main():
     config = checkpoint["config"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    model = MaskedDiffusion(config)
+    model = build_model(config, load_weights=False)
     state_dict = {k.removeprefix("module.").removeprefix("_orig_mod."): v for k, v in checkpoint["model"].items()}
     model.load_state_dict(state_dict)
     model.to(device=device)

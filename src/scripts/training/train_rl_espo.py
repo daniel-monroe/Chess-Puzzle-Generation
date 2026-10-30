@@ -40,6 +40,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.distributed import init_process_group, destroy_process_group, all_reduce, ReduceOp, gather, scatter
 
 from MaskedDiffusion.model import MaskedDiffusion
+from models import build_model
 from tokenization.tokenization import theme_preprocessor, scale_ratings, unscale_ratings, tokens_to_fen, tokens_to_move, tokenize_fen, tokenize_move
 from metrics.themes import legal, get_unique_puzzle_from_fen, counter_intuitive
 from metrics.diversity_filtering import ReplayBuffer
@@ -518,7 +519,7 @@ if __name__ == "__main__":
     config.schedule = "linear"
     config.masking_schedule = string_to_schedule(config.schedule)
     
-    model = MaskedDiffusion(config)
+    model = build_model(config, load_weights=False)
     state_dict = {k.removeprefix("module.").removeprefix("_orig_mod."): v for k, v in checkpoint["model"].items()}
     model.load_state_dict(state_dict)
     model.to(device=device)
@@ -528,7 +529,7 @@ if __name__ == "__main__":
     reference_config = reference_checkpoint["config"]
     reference_config.schedule = "linear"  # make the masking schedule of the reference model match the training masking schedule
     reference_config.masking_schedule = string_to_schedule(reference_config.schedule)
-    reference_model = MaskedDiffusion(reference_config)
+    reference_model = build_model(reference_config, load_weights=False)
     ref_state_dict = {k.removeprefix("module.").removeprefix("_orig_mod."): v for k, v in reference_checkpoint["model"].items()}
     reference_model.load_state_dict(ref_state_dict)
     reference_model.to(device=device)

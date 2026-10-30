@@ -40,3 +40,8 @@ Paper versions/
 Presentation 8.5/
 Presentation 13.2/
 Research plan/
+
+# BT4 weights, torch.compile cache
+weights/
+.inductor_cache/
+runs_conf/
