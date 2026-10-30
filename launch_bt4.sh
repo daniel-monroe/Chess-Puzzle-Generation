@@ -10,11 +10,13 @@
 # Both runs use the same settings: data, targets (PREDICT_MOVES), global batch, steps, AdamW
 # with lr 3e-4 and weight decay 1e-4, WARMUP then cosine decay, same validation and
 # evaluation. Only the network (and BT4's pretrained init) differ.
+# Checkpoints: model_<step>.pt every SAVE_EVERY (newest KEEP_CKPTS kept, used for resuming) and
+# model_best.pt, the weights with the lowest validation loss so far (checked every VAL_EVERY).
 # Each run gets an equal share of the GPUs (GPUS=0,1,2,... to choose them) and is resumed
 # from its newest checkpoint if the run directory already exists.
 #
 # Knobs (env vars, defaults in brackets):
-#   PREFIX [bt4]  BATCH [2048 global per run]  STEPS [400000]  WARMUP [1000]  KEEP_CKPTS [2]
+#   PREFIX [bt4]  BATCH [2048 global per run]  STEPS [1000000] (= the paper's 2M steps x batch 1024)  WARMUP [1000]  KEEP_CKPTS [2]
 #   LR_NEW [3e-4] new layers of the finetune   LR_PRE [3e-4] pretrained BT4 layers (same as LR_ORIGINAL by default)
 #   LR_ORIGINAL [3e-4]  WD [1e-4]  PREDICT_MOVES [1]  COMPILE [1]  CKPT_ACT [0]
 #   SAVE_EVERY [20000]  VAL_EVERY [5000]  EVAL_EVERY [50000]  N_EVAL [20000]  SKIP_INITIAL_EVAL [1]
@@ -30,7 +32,7 @@ fi
 RUNS=${RUNS:-"finetune original"}
 PREFIX=${PREFIX:-bt4}
 BATCH=${BATCH:-2048}
-STEPS=${STEPS:-400000}
+STEPS=${STEPS:-1000000}
 WARMUP=${WARMUP:-1000}
 KEEP_CKPTS=${KEEP_CKPTS:-2}
 LR_NEW=${LR_NEW:-3e-4}

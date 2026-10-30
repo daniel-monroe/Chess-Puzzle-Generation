@@ -76,7 +76,7 @@ def main():
         run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
     logging_path = Path(args.runs_dir) / run_name
     if args.resume and args.checkpoint_name is None and logging_path.exists():
-        ckpts = sorted(logging_path.glob("model_*.pt"), key=lambda p: int(re.findall(r"\d+", p.stem)[-1]))
+        ckpts = sorted(logging_path.glob("model_[0-9]*.pt"), key=lambda p: int(re.findall(r"\d+", p.stem)[-1]))
         if ckpts:
             args.checkpoint_name = ckpts[-1].name
     continue_from_checkpoint = args.checkpoint_name != None
@@ -250,6 +250,8 @@ def main():
         unwrapped_model = unwrap(model)
         return unwrapped_model.elbo_loss(t, logits, tokens, masked_tokens)
 
+    best = {"val": checkpoint.get("best_val_loss", float("inf")) if continue_from_checkpoint else float("inf")}
+
     def unwrap(m):
         m = getattr(m, "_orig_mod", m)
         return m.module if isinstance(m, DistributedDataParallel) else m
@@ -321,7 +323,19 @@ def main():
         validation_loss = compute_validation_loss()
         if master_process:
             validation_writer.add_scalar("Loss", validation_loss, step)
-            print(f"[val] step {step} validation loss {float(validation_loss):.4f}", flush=True)
+            val = float(validation_loss)
+            is_best = step > 1 and val < best["val"]      # step 1 = untrained, never "best"
+            if is_best:
+                best["val"] = val
+                save_best(step, val)
+            print(f"[val] step {step} validation loss {val:.4f}"
+                  + (" (new best, saved model_best.pt)" if is_best else
+                     f" (best {best['val']:.4f})" if best["val"] < float("inf") else ""), flush=True)
+
+    def save_best(step, val):
+        """Best-by-validation-loss weights (no optimizer state); never pruned."""
+        torch.save({"model": unwrap(model).state_dict(), "config": config, "step": step,
+                    "val_loss": val}, logging_path / "model_best.pt")
 
     def save_state():
         checkpoint_path = logging_path / f"model_{step:07d}.pt"
@@ -331,11 +345,12 @@ def main():
             "config": config,
             "optimizer": optimizer.state_dict(),
             "epoch": epoch,
-            "step": step
+            "step": step,
+            "best_val_loss": best["val"],
         }
         torch.save(checkpoint, checkpoint_path)
         if args.keep_checkpoints > 0:
-            old = sorted(logging_path.glob("model_*.pt"), key=lambda p: int(re.findall(r"\d+", p.stem)[-1]))
+            old = sorted(logging_path.glob("model_[0-9]*.pt"), key=lambda p: int(re.findall(r"\d+", p.stem)[-1]))
             for p in old[:-args.keep_checkpoints]:
                 p.unlink(missing_ok=True)
 
